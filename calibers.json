@@ -1,0 +1,305 @@
+{
+  "_meta": {
+    "说明": "人工口径层：usage=一句话用途 grain=表粒度 biz_date=业务日期与分区说明 joins=常用关联键 notes=已知口径与坑。留空的字段构建时会回退到注册表 table_comment。改完重跑 build_page.py 即可。",
+    "updated": "2026-09-23"
+  },
+  "app.new_room_statistics_state": {
+    "usage": "房间每日运营统计（收礼/开播/进房口径），房间维度统计首选",
+    "grain": "房间×日",
+    "biz_date": "format_dt(yyyy-MM-dd)；dt 分区 yyyyMMdd",
+    "notes": ["房间维度 90 天收礼、新厅统计等场景的主表，先按 room_type/tag_id 过滤再聚合"]
+  },
+  "app.crm_room_performance_statistics": {
+    "usage": "CRM 房间绩效日统计",
+    "grain": "房间×日",
+    "biz_date": "format_dt；dt 分区",
+    "notes": ["厅房维度收礼常用；房间键与个播 CRM 表零匹配，勿混用"]
+  },
+  "app.crm_room_performance_statistics_weekly": {
+    "usage": "CRM 房间绩效周统计",
+    "grain": "房间×周",
+    "biz_date": "周字段以列注释为准；dt 分区",
+    "notes": ["与日表口径对齐，跨周对比用它比日表自聚合更稳"]
+  },
+  "app.crm_room_anchor_earnings_detail": {
+    "usage": "房间内主播收益明细",
+    "grain": "房间×主播×日",
+    "biz_date": "format_dt；dt 分区",
+    "joins": "anchor_id, room_id",
+    "notes": ["主播在房间粒度的收礼钻拆分用它，不要从 fact 表自算拆分"]
+  },
+  "dws.dws_user_identity_active_a_d": {
+    "usage": "用户身份与活跃明细，活跃判定主表",
+    "grain": "用户×日",
+    "biz_date": "format_dt；dt 分区",
+    "joins": "user_id",
+    "notes": ["进表即算当日活跃（当日有记录=活跃，已多次验证）", "可区分用户身份（主播/用户等）、是否首日注册、是否有进房行为", "主播有效口径：当日有直播行为才计，勿把身份当活跃"]
+  },
+  "dws.dws_user_statistics_info_a_d": {
+    "usage": "全量用户每日情况统计（宽表）",
+    "grain": "用户×日",
+    "biz_date": "format_dt；dt 分区",
+    "joins": "user_id",
+    "notes": ["全量快照，未活跃用户也有行；活跃口径优先用 identity_active 表"]
+  },
+  "dws.dws_user_behavior_milestone_a_d": {
+    "usage": "用户行为里程碑全量快照（首次充值/首次送礼等）",
+    "grain": "用户×里程碑×日",
+    "biz_date": "取昨日分区（快照表，勿扫全历史）",
+    "joins": "user_id",
+    "notes": ["快照表按用户去重后再 join；转新/首次行为判定优先用它而非事实表自算"]
+  },
+  "dws.dws_user_relation_state_a_d": {
+    "usage": "用户送礼关系对状态（双方首次建联/沉默/重建）",
+    "grain": "用户关系对×日",
+    "biz_date": "format_dt 等同 dt 分区",
+    "joins": "relation_user_id_min/max",
+    "notes": ["列注释非常详细，直接按列注释取口径", "活跃定义=app启动/进房/送礼/充值，见列注释"]
+  },
+  "dwd.fact_yoy_user_gift_record_i_d": {
+    "usage": "用户送礼明细（小时增量），送礼类指标主表",
+    "grain": "用户×主播×房间×礼物×时间点",
+    "biz_date": "format_dt(yyyy-MM-dd)；dt 分区 yyyyMMdd",
+    "joins": "from_user_id, to_user_id(主播), room_id, prop_id",
+    "notes": ["宝箱礼物判定只用 is_box_gift=1（名称匹配法、goods_type=2 均已证伪）", "送礼额不要乘 num：批量送礼的 num 已体现在行数里", "奇遇限定/心动航线用 gift_name 精确名匹配（2026-09-18 上线），返还率约 99%", "财富等级 8 = 财富值 >= 1750（definition_type 2=财富值）"]
+  },
+  "dwd.fact_yoy_anchor_gift_record_i_d": {
+    "usage": "主播收礼明细（与用户送礼表镜像）",
+    "grain": "主播×送礼用户×房间×礼物×时间点",
+    "biz_date": "format_dt；dt 分区",
+    "joins": "anchor_id, from_user_id, room_id",
+    "notes": ["有效主播多口径时：当日有直播行为才算有效，开播表 NULL=未开播", "送礼额不乘 num（同 fact_yoy_user_gift_record_i_d）"]
+  },
+  "dws.dws_user_gift_recharge_a_d": {
+    "usage": "用户送礼与充值明细（合并宽表），付费画像/女性用户分析主力表",
+    "grain": "用户×日",
+    "biz_date": "format_dt；dt 分区",
+    "joins": "user_id",
+    "notes": ["女性付费画像常用定档法：按当月用户最后一次充值定档充值等级", "可区分用户身份、充值区间；进表口径见列注释"]
+  },
+  "ods.ods_yoy_coin_change_record_a_d": {
+    "usage": "月亮币变动记录（Impala 同步侧）",
+    "grain": "用户×变动流水",
+    "biz_date": "create_timestamp；dt 分区",
+    "joins": "user_id",
+    "notes": ["src_type 枚举与 MySQL yoy.coin_change_record 同源：1000/1001=充值代理、2000=回兑"]
+  },
+  "ods.ods_yoy_coin_summary_record_a_d": {
+    "usage": "用户资产币定时结算（余额快照）",
+    "grain": "用户×结算时点",
+    "biz_date": "结算时间列见注释；dt 分区",
+    "joins": "user_id",
+    "notes": ["月亮币余额拆活跃/沉默用户时用它，注意取每日最后一个结算批次"]
+  },
+  "app.new_register_recharge_analyse_state": {
+    "usage": "新注册用户充值分析（分渠道）",
+    "grain": "用户(注册批次)×日",
+    "biz_date": "format_dt；dt 分区",
+    "joins": "user_id",
+    "notes": ["渠道口径与 ods_user_source_ad_thirdplatform_a_d 对齐时注意渠道名映射"]
+  },
+  "ods.ods_yoy_buy_goods_record_a_d": {
+    "usage": "用户购买商品记录（头饰/座驾等）",
+    "grain": "用户×购买流水",
+    "biz_date": "create_time；dt 分区",
+    "joins": "user_id, prop_id/goods_id",
+    "notes": ["按 prop_id 查上周销售直接过滤时间窗聚合"]
+  },
+  "dws.dws_user_guild_room_anchor_gift_i_d": {
+    "usage": "用户-公会房间-主播送礼聚合（首付/复送率场景）",
+    "grain": "用户×房间(公会)×日",
+    "biz_date": "format_dt；dt 分区",
+    "joins": "user_id, room_id",
+    "notes": ["首付复送率：首次送礼日后再送礼=复送，跨表对齐用户身份用 identity_active"]
+  },
+  "app.anchor_daily_live_statistics_state": {
+    "usage": "主播每日开播统计（有效主播数场景）",
+    "grain": "主播×日",
+    "biz_date": "format_dt；dt 分区",
+    "joins": "anchor_id",
+    "notes": ["约 6% 重复键：同主播同日多行时须按 MAX(时长/收礼) 去重再聚合", "开播时长字段 NULL=当日未开播", "live_type 仅两值且拼写为 nomal（非 normal）与 385:174，勿按字面猜"]
+  },
+  "dim.dim_anchor_info": {
+    "usage": "主播信息维表（昵称/公会归属等）",
+    "grain": "主播",
+    "biz_date": "维表，取最新或指定日分区",
+    "joins": "anchor_id",
+    "notes": ["关联事实表前先过滤维表需要的列，避免全列 join"]
+  },
+  "dwd.fact_t_guild_anchor_living_a_d": {
+    "usage": "公会主播开播事实表",
+    "grain": "主播×开播场次",
+    "biz_date": "format_dt；dt 分区",
+    "joins": "anchor_id, guild_id",
+    "notes": ["月度开播主播统计用它按 anchor_id 去重计数"]
+  },
+  "ods.ods_flamingo_guild_public_payment_conf_a_d": {
+    "usage": "公会公开分成配置（档位/比例）",
+    "grain": "公会×配置版本",
+    "biz_date": "dt 分区",
+    "joins": "guild_id",
+    "notes": ["DDL 取自 record 版文档，使用前建议 SHOW CREATE TABLE 复核列名"]
+  },
+  "ods.ods_flamingo_anchor_public_payment_conf_a_d": {
+    "usage": "主播公开分成配置",
+    "grain": "主播×配置版本",
+    "biz_date": "dt 分区",
+    "joins": "anchor_id",
+    "notes": ["与公会配置表同源结构；估算主播分成时注意配置生效时间区间"]
+  },
+  "dim.dim_guild_info": {
+    "usage": "公会信息维表",
+    "grain": "公会",
+    "biz_date": "维表",
+    "joins": "guild_id",
+    "notes": ["公会 SAB 分级以该表或当期运营口径为准，跨月对比注意分级变更"]
+  },
+  "ods.ods_yoy_user_agreement_a_d": {
+    "usage": "用户协议签署记录（主播签约等）",
+    "grain": "用户×协议×版本",
+    "biz_date": "dt 分区",
+    "joins": "user_id",
+    "notes": ["判定签约主播时取每个用户最新一条签署记录"]
+  },
+  "ods.ods_yoy_users_a_d": {
+    "usage": "用户全量快照（性别/注册时间/财富值等）",
+    "grain": "用户×日快照",
+    "biz_date": "取所需日期分区",
+    "joins": "user_id",
+    "notes": ["女性用户筛选用性别列；财富等级 8 = 财富值 >= 1750（ods_yoy_user_biz_definition_a_d: definition_type 1=魅力值 2=财富值）", "性别字段取值先 DISTINCT 确认再过滤"]
+  },
+  "ods.ods_flamingo_t_room_in_out_log_i_d": {
+    "usage": "房间进出日志（进房 UV/PV 明细）",
+    "grain": "用户×房间×进出事件",
+    "biz_date": "create_time；dt 分区",
+    "joins": "user_id, room_id",
+    "notes": ["进房 UV 按 user_id 去重；AB 组进房监控先按用户尾号分桶再聚合", "事件表量大，必须先裁剪 dt 再 join"]
+  },
+  "ods.ods_yoy_recommend_room_a_d": {
+    "usage": "推荐房间记录（曝光位）",
+    "grain": "用户×房间×推荐事件",
+    "biz_date": "dt 分区",
+    "joins": "user_id, room_id",
+    "notes": []
+  },
+  "ods.ods_sensors_show_rooms_effectively_i_d": {
+    "usage": "房间有效曝光埋点（sensors）",
+    "grain": "用户×房间×曝光事件",
+    "biz_date": "dt 分区",
+    "joins": "user_id, room_id",
+    "notes": ["曝光→进房转化漏斗的分母来源；与进出日志按 room_id+日期对齐"]
+  },
+  "app.newbie_conversion_info": {
+    "usage": "萌新进房转化统计（官方转化口径）",
+    "grain": "用户×日",
+    "biz_date": "format_dt；dt 分区",
+    "joins": "user_id, conversion_room_id",
+    "notes": ["官方转化口径用 conversion_room_id；is_first_gift 的转新口径与官方口径不等价，写明用哪个"]
+  },
+  "ods.ods_flamingo_t_room_a_d": {
+    "usage": "房间信息（厅类型/标签）",
+    "grain": "房间",
+    "biz_date": "dt 分区",
+    "joins": "room_id",
+    "notes": ["room_type=1 且 tag_id=14 类过滤先在本表完成再 join 明细"]
+  },
+  "ods.ods_eagle_t_inner_accounts": {
+    "usage": "内部账号标记表（自己人/测试/黑名单），用户口径统计前用它剔除内部账号",
+    "grain": "用户×标记记录（仅 5 列，无金额）",
+    "biz_date": "create_timestamp；dt 分区",
+    "joins": "user_id",
+    "notes": ["仅 5 列：type 0=自己人 1=测试账号 2=黑名单；status 0=未生效 1=生效中", "过滤方式：LEFT JOIN 后按生效标记排除，或 NOT EXISTS 子查询", "涉及 UV/收礼/充值等对外口径的统计，应先过该表剔除内部账号再计数"]
+  },
+  "ods.ods_yoy_user_cash_out_apply_a_d": {
+    "usage": "用户提现申请记录",
+    "grain": "用户×提现申请",
+    "biz_date": "apply/create 时间列见注释；dt 分区",
+    "joins": "user_id",
+    "notes": ["提现渠道匹配注意渠道编码字典；金额单位先抽样确认（分/元）"]
+  },
+  "ods.ods_yoy_sms_marketing_task_user_a_d": {
+    "usage": "短信营销任务用户明细（发送/回访）",
+    "grain": "用户×任务×日",
+    "biz_date": "dt 分区",
+    "joins": "user_id",
+    "notes": ["task_id 每天会变，但批次号固定——按批次聚合而不是按 task_id", "回访 UV 判定口径见列注释（回访=发送后 N 日内活跃）"]
+  },
+  "ods.ods_yoy_sms_recall_reward_pack_a_d": {
+    "usage": "短信召回奖励包发放记录",
+    "grain": "用户×发放流水",
+    "biz_date": "dt 分区",
+    "joins": "user_id",
+    "notes": ["DDL 未入本地注册表，使用前先 DESCRIBE 确认列"]
+  },
+  "yoy.box_draw_consume_record": {
+    "usage": "MySQL 命盘开箱抽取明细（宝箱玩法监控主表，未进 Impala 注册表）",
+    "grain": "用户×抽取行",
+    "biz_date": "create_timestamp 毫秒，FROM_UNIXTIME(create_timestamp/1000)，会话 +08:00 不做时区换算",
+    "joins": "from_user_id, to_user_id, gift_record_id, box_goods_id",
+    "notes": ["只计 consume_state=1（0=待确认 2=失败取消）", "开出价值用 actual_goods_price；config_goods_price 是配置价", "送礼成本按 gift_record_id 对齐 yoy.user_gift_record 的 SUM(goods_price)，不要再乘 num（抽取行数=num）", "宝箱名称路径：biz_goods → biz_props → item_detail.name；2026-09 近窗仅心动航线(88钻,box_goods_id 3554160098649586191)与真龙宝箱(299钻,…117)", "Hue MySQL 不支持 OVER(PARTITION BY)，窗口需求用子查询+GROUP BY", "Top1000 用户拆宝箱：先按用户窗口总 SUM(goods_price) 圈 Top1000，再按 from_user_id×box_goods_id 拆，不是每箱各取 Top1000"]
+  },
+  "yoy.coin_change_record": {
+    "usage": "MySQL 月亮币变动记录",
+    "grain": "用户×变动流水",
+    "biz_date": "create_timestamp；会话 +08:00 不做时区换算",
+    "joins": "user_id",
+    "notes": ["src_type：1000/1001=充值代理（合计×1.71≈充值额，±4%，需每月复校）、2000=回兑（精确）", "GMV 估算优先用充值代理口径并注明系数，勿用 user_cumulative_recharge 系列表"]
+  },
+  "yoy.users": {
+    "usage": "MySQL 用户表（昵称/状态）",
+    "grain": "用户",
+    "biz_date": "实时表",
+    "joins": "user_id 唯一",
+    "notes": ["昵称取 name 列；user_id 唯一可直接 join"]
+  },
+  "yoy.user_gift_record": {
+    "usage": "MySQL 送礼记录（实时，未同步 Impala 的近期数据用）",
+    "grain": "用户×送礼流水",
+    "biz_date": "create_timestamp；会话 +08:00",
+    "joins": "user_id, goods_id/prop_id, id(对齐 box_draw_consume_record.gift_record_id)",
+    "notes": ["送礼额 SUM(goods_price)，不乘 num", "与 box_draw_consume_record 对齐时用 gift_record_id=id"]
+  },
+  "yoy.user_cumulative_recharge_record": {
+    "usage": "MySQL 累计充值记录（活动子集）",
+    "grain": "用户×充值流水（子集）",
+    "biz_date": "create_timestamp",
+    "joins": "user_id",
+    "notes": ["仅覆盖活动用户子集（约 2%~8%），严禁用于 GMV/充值规模统计"]
+  },
+  "yoy.user_cumulative_recharge": {
+    "usage": "MySQL 累计充值汇总（活动子集）",
+    "grain": "用户",
+    "biz_date": "实时表",
+    "joins": "user_id",
+    "notes": ["同 record 表：活动子集，勿用于 GMV"]
+  },
+  "yoy.item_detail": {
+    "usage": "MySQL 道具明细（礼物最终名称）",
+    "grain": "道具",
+    "biz_date": "配置表",
+    "joins": "id/item_id",
+    "notes": ["名称解析链路终点：biz_goods → biz_props → item_detail.name"]
+  },
+  "yoy.biz_props": {
+    "usage": "MySQL 道具属性（goods 与 item 桥接）",
+    "grain": "道具属性",
+    "biz_date": "配置表",
+    "joins": "goods_id ↔ item_id",
+    "notes": []
+  },
+  "yoy.biz_goods": {
+    "usage": "MySQL 商品/礼物配置（goods_id 维度）",
+    "grain": "商品",
+    "biz_date": "配置表",
+    "joins": "id/goods_id",
+    "notes": ["礼物等级枚举：goods_level 3=传说 4=典藏"]
+  },
+  "_global_rules": [
+    "dt 仅作分区裁剪，不默认当业务日期；先确认业务时间字段（format_dt 等）及其格式（yyyy-MM-dd / yyyyMMdd / 毫秒时间戳）",
+    "北京时间 00:00–08:00 数仓计算周期内 T-1 未就绪：对账/验收用 T-2 作为最新已核实日期，勿因 T-1 空行误判失败",
+    "输出列一律英文/ASCII 别名；避免 QUALIFY（用外层查询包窗口）；大表先裁剪 dt/过滤维度再 join；join 前核对键类型一致",
+    "Impala 方言：无 nocase 等扩展，字符串比较注意大小写；多 COUNT(DISTINCT) 场景改 MAX(CASE WHEN 标记) 转 SUM 提速",
+    "MySQL 会话时区固定 +08:00，不做时区转换；毫秒时间戳用 FROM_UNIXTIME(ts/1000)",
+    "AB 分组看板对账：A 组 + B 组 = 原始总（UV 直接相加，比率用合并 UV 重算）"
+  ]
+}
